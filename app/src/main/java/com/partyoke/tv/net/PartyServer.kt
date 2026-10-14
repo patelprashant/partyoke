@@ -1,7 +1,10 @@
 package com.partyoke.tv.net
 
 import com.partyoke.tv.game.PartyManager
+import com.partyoke.tv.model.PartyState
+import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.embeddedServer
@@ -16,9 +19,9 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
-import io.ktor.http.ContentType
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
@@ -72,7 +75,7 @@ class PartyServer(
                 webSocket("/ws") {
                     // Push the full state on every change to this phone.
                     manager.state.collectLatest { state ->
-                        send(Frame.Text(json.encodeToString(state)))
+                        send(Frame.Text(json.encodeToString(PartyState.serializer(), state)))
                     }
                 }
             }

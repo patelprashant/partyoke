@@ -85,4 +85,7 @@ dependencies {
 
     // QR code
     implementation(libs.zxing.core)
+
+    // Material Components for Material3 themes
+    implementation(libs.material)
 }

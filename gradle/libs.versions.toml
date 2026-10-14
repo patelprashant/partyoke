@@ -13,6 +13,7 @@ coroutines = "1.8.1"
 serialization = "1.7.1"
 zxing = "3.5.3"
 documentfile = "1.0.1"
+material = "1.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +51,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # QR code generation
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
