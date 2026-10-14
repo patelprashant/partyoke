@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PartyOke</string>
+    <string name="tagline">Scan. Sing. Party.</string>
+    <string name="pick_folder">Select USB Karaoke Folder</string>
+    <string name="scan_to_join">Scan to Join the Party</string>
+    <string name="players">Players</string>
+    <string name="up_next">Up Next</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="no_players">Waiting for players to join…</string>
+    <string name="start_party">Start Party</string>
+</resources>
