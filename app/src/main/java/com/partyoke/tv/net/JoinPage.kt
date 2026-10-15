@@ -99,7 +99,23 @@ object JoinPage {
     });
   };
 
+  var sessionChecked = false;
+
   function render(state) {
+    if (playerId && !sessionChecked) {
+      var found = (state.players || []).some(function(p){ return p.id === playerId; });
+      if (!found && (state.players || []).length === 0) {
+        localStorage.removeItem('partyoke_pid');
+        localStorage.removeItem('partyoke_name');
+        playerId = null;
+        playerName = null;
+        show('join');
+        sessionChecked = true;
+        return;
+      }
+      sessionChecked = true;
+    }
+
     var mine = (state.queue || []).filter(function(t){ return t.playerId === playerId; });
     var np = state.nowPlaying;
     if (np && np.playerId === playerId) {
