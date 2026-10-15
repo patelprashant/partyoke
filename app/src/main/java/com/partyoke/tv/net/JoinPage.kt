@@ -190,7 +190,7 @@ object JoinPage {
     if (n) { post('/admin/rename', { playerId: playerId, name: n }); }
   };
 
-  function isAdmin(state) { return state && state.adminPlayerId === playerId; }
+  function isAdmin(state) { return state && playerId && state.adminPlayerId === playerId; }
 
   function applyAccent(hex) {
     document.documentElement.style.setProperty('--accent', hex || '#ff2e92');
