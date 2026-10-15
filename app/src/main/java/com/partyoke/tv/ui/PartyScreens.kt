@@ -36,6 +36,7 @@ import com.partyoke.tv.net.QrGenerator
 import com.partyoke.tv.ui.theme.PartyCard
 import com.partyoke.tv.ui.theme.PartyMuted
 import com.partyoke.tv.ui.theme.PartyPink
+import com.partyoke.tv.ui.theme.parseAccent
 
 @Composable
 fun SetupScreen(onPickFolder: () -> Unit) {
@@ -64,6 +65,7 @@ fun SetupScreen(onPickFolder: () -> Unit) {
 
 @Composable
 fun LobbyScreen(state: PartyState, onStart: () -> Unit) {
+    val accent = parseAccent(state.accentColor)
     Row(modifier = Modifier.fillMaxSize().padding(48.dp)) {
         // Left: QR + join info
         Column(
@@ -71,7 +73,9 @@ fun LobbyScreen(state: PartyState, onStart: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Scan to Join the Party", fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text(state.partyName, fontSize = 44.sp, fontWeight = FontWeight.Black, color = accent)
+            Spacer(Modifier.height(8.dp))
+            Text("Scan to Join the Party", fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
             QrCode(state.joinUrl, 360)
             Spacer(Modifier.height(16.dp))
@@ -90,6 +94,7 @@ fun LobbyScreen(state: PartyState, onStart: () -> Unit) {
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(state.players) { p ->
+                        val isAdmin = p.id == state.adminPlayerId
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -98,7 +103,12 @@ fun LobbyScreen(state: PartyState, onStart: () -> Unit) {
                                 .background(PartyCard)
                                 .padding(18.dp),
                         ) {
-                            Text(p.name, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = if (isAdmin) "${p.name}  👑 Admin" else p.name,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isAdmin) accent else Color.White,
+                            )
                         }
                     }
                 }
@@ -121,6 +131,7 @@ fun PlayingScreen(
     currentUri: String?,
     key: String? = null,
 ) {
+    val accent = parseAccent(state.accentColor)
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         if (currentUri != null) {
             // keying by the turn id guarantees a fresh player per song
@@ -149,8 +160,37 @@ fun PlayingScreen(
                     text = "Up Next: ${nextTurn.playerName}",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = PartyPink,
+                    color = accent,
                 )
+            }
+        }
+
+        // Top Left: live applause leaderboard (top 5)
+        if (state.leaderboard.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xCC1D1033))
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+            ) {
+                Column {
+                    Text(
+                        "🏆 LEADERBOARD",
+                        fontSize = 14.sp,
+                        color = accent,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    state.leaderboard.take(5).forEachIndexed { i, e ->
+                        Text(
+                            "${i + 1}. ${e.playerName}   👏 ${e.applause}",
+                            fontSize = 18.sp,
+                            color = Color.White,
+                        )
+                    }
+                }
             }
         }
 

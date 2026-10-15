@@ -33,6 +33,22 @@ private data class JoinResponse(val id: String, val name: String)
 @Serializable
 private data class SkipRequest(val playerId: String)
 
+@Serializable
+private data class ApplaudRequest(val playerId: String)
+
+@Serializable
+private data class QueueActionRequest(
+    val playerId: String,
+    val turnId: String,
+    val newIndex: Int = 0,
+)
+
+@Serializable
+private data class RenameRequest(val playerId: String, val name: String)
+
+@Serializable
+private data class AccentRequest(val playerId: String, val accent: String)
+
 /**
  * Embedded HTTP + WebSocket server that phones connect to over local Wi-Fi.
  * Serves the join page, accepts joins/skips, and streams [PartyManager.state]
@@ -69,6 +85,44 @@ class PartyServer(
                     if (current?.playerId == req.playerId) {
                         manager.reshuffleCurrent()
                     }
+                    call.respondText("ok")
+                }
+
+                // --- Applause (any guest) ---
+                post("/applaud") {
+                    val req = call.receive<ApplaudRequest>()
+                    manager.applaud(req.playerId)
+                    call.respondText("ok")
+                }
+
+                // --- Admin-only actions (manager verifies sender is admin) ---
+                post("/admin/queue/move") {
+                    val req = call.receive<QueueActionRequest>()
+                    manager.moveTurn(req.turnId, req.newIndex, req.playerId)
+                    call.respondText("ok")
+                }
+
+                post("/admin/queue/bump") {
+                    val req = call.receive<QueueActionRequest>()
+                    manager.bumpToNext(req.turnId, req.playerId)
+                    call.respondText("ok")
+                }
+
+                post("/admin/queue/remove") {
+                    val req = call.receive<QueueActionRequest>()
+                    manager.removeTurn(req.turnId, req.playerId)
+                    call.respondText("ok")
+                }
+
+                post("/admin/rename") {
+                    val req = call.receive<RenameRequest>()
+                    manager.renameParty(req.name, req.playerId)
+                    call.respondText("ok")
+                }
+
+                post("/admin/accent") {
+                    val req = call.receive<AccentRequest>()
+                    manager.setAccentColor(req.accent, req.playerId)
                     call.respondText("ok")
                 }
 

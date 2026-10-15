@@ -83,10 +83,28 @@ open it in a browser, enter a name, and get a random song queued automatically.
 
 ---
 
+## 🎛️ Admin features (Tier 1)
+
+The **first phone to join is the admin** (no PIN needed). The admin's phone shows
+an extra control panel; if the admin leaves, the next-earliest player is promoted
+automatically.
+
+| Feature | Where | Notes |
+|---|---|---|
+| 👑 **Admin = first player** | phone + TV badge | Auto-promotes on admin leave |
+| 📋 **Queue management** | admin phone | Bump a turn to next, or remove it |
+| 🎨 **Rename party + accent** | admin phone | Live party name + accent color on TV *and* phones (defaults: "PartyOke" / `#FF2E92`) |
+| 👏 **Applause + leaderboard** | all phones | One applause per guest per turn, no self-applause; leaderboard shows on TV + phones |
+
+Admin actions are HTTP POSTs (`/admin/rename`, `/admin/accent`,
+`/admin/queue/bump`, `/admin/queue/remove`) and the server verifies the sender is
+the admin. Applause is `/applaud` (any guest).
+
 ## 🧭 Roadmap ideas
 
 - Lyrics overlay (`.lrc` / `.srt`)
-- Audience applause / scoring from phones
+- Join control (lock/unlock, max players, name approval)
+- Full drag-to-reorder queue on the admin phone
 - Session persistence across restarts
 - Pluggable `ActivityLog` (file or Room) for post-party stats
 

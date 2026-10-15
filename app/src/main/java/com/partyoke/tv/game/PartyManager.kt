@@ -6,6 +6,7 @@ import com.partyoke.tv.data.ActivityType
 import com.partyoke.tv.model.PartyPhase
 import com.partyoke.tv.model.PartyState
 import com.partyoke.tv.model.Player
+import com.partyoke.tv.model.ScoreEntry
 import com.partyoke.tv.model.Song
 import com.partyoke.tv.model.Turn
 import com.partyoke.tv.model.TurnStatus
@@ -34,6 +35,16 @@ class PartyManager(private val activityLog: ActivityLog) {
 
     /** Songs not yet assigned in the current pass through the catalog. */
     private val songBag = ArrayDeque<Song>()
+
+    /** playerId -> total applause received. */
+    private val applauseByPlayer = mutableMapOf<String, Int>()
+
+    /**
+     * Records which guest has already applauded which turn, so a single phone
+     * can only applaud a given singer's turn once (anti-spam).
+     * Key = turnId, value = set of applauding playerIds.
+     */
+    private val applaudedTurns = mutableMapOf<String, MutableSet<String>>()
 
     // --- Setup -----------------------------------------------------------
 
@@ -77,6 +88,10 @@ class PartyManager(private val activityLog: ActivityLog) {
             ActivityEvent(ActivityType.PLAYER_JOINED, player.joinedAtMillis, player.id, player.name)
         )
         _state.value = _state.value.copy(players = _state.value.players + player)
+        // The first player to join becomes the admin.
+        if (_state.value.adminPlayerId == null) {
+            promoteToAdmin(player.id)
+        }
         enqueueTurn(player)
         player
     }
@@ -85,10 +100,89 @@ class PartyManager(private val activityLog: ActivityLog) {
         activityLog.record(
             ActivityEvent(ActivityType.PLAYER_LEFT, System.currentTimeMillis(), playerId)
         )
+        val remaining = _state.value.players.filterNot { it.id == playerId }
         _state.value = _state.value.copy(
-            players = _state.value.players.filterNot { it.id == playerId },
+            players = remaining,
             queue = _state.value.queue.filterNot { it.playerId == playerId },
         )
+        // If the admin left, auto-promote the next (earliest-joined) player.
+        if (_state.value.adminPlayerId == playerId) {
+            val next = remaining.minByOrNull { it.joinedAtMillis }
+            if (next != null) promoteToAdmin(next.id)
+            else _state.value = _state.value.copy(adminPlayerId = null)
+        }
+    }
+
+    // --- Admin: party branding ------------------------------------------
+
+    fun renameParty(name: String, byPlayerId: String) = synchronized(lock) {
+        if (!isAdmin(byPlayerId)) return
+        val clean = name.trim().take(32).ifEmpty { return }
+        activityLog.record(
+            ActivityEvent(ActivityType.PARTY_RENAMED, System.currentTimeMillis(), byPlayerId, clean)
+        )
+        _state.value = _state.value.copy(partyName = clean)
+    }
+
+    fun setAccentColor(hex: String, byPlayerId: String) = synchronized(lock) {
+        if (!isAdmin(byPlayerId)) return
+        val clean = hex.trim()
+        if (!clean.matches(Regex("^#[0-9a-fA-F]{6}$"))) return
+        activityLog.record(
+            ActivityEvent(ActivityType.ACCENT_CHANGED, System.currentTimeMillis(), byPlayerId, clean)
+        )
+        _state.value = _state.value.copy(accentColor = clean)
+    }
+
+    // --- Admin: queue management ----------------------------------------
+
+    /** Moves a queued turn to a new position (clamped to valid range). */
+    fun moveTurn(turnId: String, newIndex: Int, byPlayerId: String) = synchronized(lock) {
+        if (!isAdmin(byPlayerId)) return
+        val queue = _state.value.queue.toMutableList()
+        val from = queue.indexOfFirst { it.id == turnId }
+        if (from < 0) return
+        val target = newIndex.coerceIn(0, queue.size - 1)
+        val item = queue.removeAt(from)
+        queue.add(target, item)
+        activityLog.record(
+            ActivityEvent(ActivityType.QUEUE_REORDERED, System.currentTimeMillis(), byPlayerId, item.playerName)
+        )
+        _state.value = _state.value.copy(queue = queue)
+    }
+
+    /** Moves a turn to the front of the queue (plays next). */
+    fun bumpToNext(turnId: String, byPlayerId: String) =
+        moveTurn(turnId, 0, byPlayerId)
+
+    /** Removes a queued turn entirely. */
+    fun removeTurn(turnId: String, byPlayerId: String) = synchronized(lock) {
+        if (!isAdmin(byPlayerId)) return
+        val turn = _state.value.queue.firstOrNull { it.id == turnId } ?: return
+        activityLog.record(
+            ActivityEvent(ActivityType.TURN_REMOVED, System.currentTimeMillis(), byPlayerId, turn.playerName)
+        )
+        _state.value = _state.value.copy(queue = _state.value.queue.filterNot { it.id == turnId })
+    }
+
+    // --- Applause / leaderboard -----------------------------------------
+
+    /**
+     * Records one applause from [fromPlayerId] for the current singer.
+     * Rules: must be an active turn, one applause per guest per turn, and a
+     * singer cannot applaud themselves.
+     */
+    fun applaud(fromPlayerId: String) = synchronized(lock) {
+        val current = _state.value.nowPlaying ?: return
+        if (current.playerId == fromPlayerId) return // no self-applause
+        val voters = applaudedTurns.getOrPut(current.id) { mutableSetOf() }
+        if (!voters.add(fromPlayerId)) return // already applauded this turn
+        val target = current.playerId
+        applauseByPlayer[target] = (applauseByPlayer[target] ?: 0) + 1
+        activityLog.record(
+            ActivityEvent(ActivityType.APPLAUSE, System.currentTimeMillis(), fromPlayerId, current.playerName)
+        )
+        _state.value = _state.value.copy(leaderboard = buildLeaderboard())
     }
 
     // --- Turn flow -------------------------------------------------------
@@ -178,6 +272,25 @@ class PartyManager(private val activityLog: ActivityLog) {
 
     private fun players(id: String): Player? =
         _state.value.players.firstOrNull { it.id == id }
+
+    private fun isAdmin(playerId: String): Boolean =
+        _state.value.adminPlayerId == playerId
+
+    private fun promoteToAdmin(playerId: String) {
+        activityLog.record(
+            ActivityEvent(ActivityType.ADMIN_ASSIGNED, System.currentTimeMillis(), playerId)
+        )
+        _state.value = _state.value.copy(adminPlayerId = playerId)
+    }
+
+    /** Builds leaderboard entries, highest applause first, resolving names. */
+    private fun buildLeaderboard(): List<ScoreEntry> =
+        applauseByPlayer.entries
+            .mapNotNull { (pid, score) ->
+                val name = players(pid)?.name ?: return@mapNotNull null
+                ScoreEntry(pid, name, score)
+            }
+            .sortedByDescending { it.applause }
 
     private fun ActivityType.event() =
         ActivityEvent(this, System.currentTimeMillis())

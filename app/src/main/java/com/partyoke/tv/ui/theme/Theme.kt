@@ -25,3 +25,19 @@ private val PartyOkeColors = darkColorScheme(
 fun PartyOkeTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = PartyOkeColors, content = content)
 }
+
+/**
+ * Parses a "#RRGGBB" accent string into a Compose [Color], falling back to
+ * [PartyPink] if the value is missing or malformed. Used to apply the
+ * admin-selected accent on the TV screens.
+ */
+fun parseAccent(hex: String?): Color {
+    if (hex.isNullOrBlank()) return PartyPink
+    return try {
+        val clean = hex.removePrefix("#")
+        if (clean.length != 6) return PartyPink
+        Color(0xFF000000 or clean.toLong(16))
+    } catch (e: Exception) {
+        PartyPink
+    }
+}

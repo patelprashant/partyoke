@@ -13,6 +13,12 @@ enum class ActivityType {
     TURN_SKIPPED,
     PARTY_STARTED,
     CATALOG_LOADED,
+    ADMIN_ASSIGNED,
+    QUEUE_REORDERED,
+    TURN_REMOVED,
+    APPLAUSE,
+    PARTY_RENAMED,
+    ACCENT_CHANGED,
 }
 
 data class ActivityEvent(
