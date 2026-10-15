@@ -10,8 +10,7 @@ package com.partyoke.tv.net
  *   3. Opens a WebSocket to /ws for live party state (queue, now playing).
  *   4. Can tap "Shuffle/Skip my song" (/skip) and "Applause" (/applaud).
  *   5. If this phone is the admin (first player == state.adminPlayerId), it
- *      additionally sees an Admin panel: rename party, pick accent color, and
- *      manage the queue (bump / remove).
+ *      sees a tabbed Admin panel: rename party, pick accent color, queue and player management.
  */
 object JoinPage {
     val HTML: String = """
@@ -56,6 +55,10 @@ object JoinPage {
   .swatch { width:40px; height:40px; border-radius:10px; border:2px solid transparent; cursor:pointer; }
   .swatch.sel { border-color:#fff; }
   .mini { display:flex; align-items:center; }
+  .tabs { display:flex; gap:10px; margin-bottom:18px; }
+  .tab { flex:1; padding:14px; font-size:16px; font-weight:700; border:none; border-radius:14px;
+         background:#241539; color:#b9a9d6; cursor:pointer; text-align:center; }
+  .tab.active { background:linear-gradient(90deg,var(--accent),var(--purple)); color:#fff; }
 </style>
 </head>
 <body>
@@ -69,44 +72,62 @@ object JoinPage {
   </div>
 
   <div id="playerView" class="hidden">
-    <div class="card">
-      <div class="label">You're in, <span id="me"></span> <span class="dot">●</span>
-        <span id="adminBadge" class="badge hidden">ADMIN</span>
+    <!-- Tab bar (admin only) -->
+    <div id="tabBar" class="tabs hidden">
+      <button class="tab active" id="tabParty" onclick="switchTab('party')">🎤 Party</button>
+      <button class="tab" id="tabAdmin" onclick="switchTab('admin')">⚙️ Admin</button>
+    </div>
+
+    <!-- Party Tab Content -->
+    <div id="partyTabContent">
+      <div class="card" style="margin-top:0;">
+        <div class="label">You're in, <span id="me"></span> <span class="dot">●</span>
+          <span id="adminBadge" class="badge hidden">ADMIN</span>
+        </div>
+        <div class="label" style="margin-top:14px;">Your next song</div>
+        <div class="song" id="mySong">—</div>
+        <button class="secondary" id="skipBtn">🔀 Shuffle / Skip my song</button>
       </div>
-      <div class="label" style="margin-top:14px;">Your next song</div>
-      <div class="song" id="mySong">—</div>
-      <button class="secondary" id="skipBtn">🔀 Shuffle / Skip my song</button>
+
+      <div class="card">
+        <div class="label">Now singing</div>
+        <div class="song" id="nowPlaying">—</div>
+        <button class="applause" id="applauseBtn">👏 Applause</button>
+      </div>
+
+      <div class="card">
+        <div class="label">🏆 Leaderboard</div>
+        <div id="leaderboard"></div>
+      </div>
+
+      <div class="card">
+        <div class="label">Up next</div>
+        <div id="queue"></div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="label">Now singing</div>
-      <div class="song" id="nowPlaying">—</div>
-      <button class="applause" id="applauseBtn">👏 Applause</button>
+    <!-- Admin Tab Content -->
+    <div id="adminTabContent" class="hidden">
+      <div class="card admin" style="margin-top:0;">
+        <div class="label">⚙️ Admin controls</div>
+
+        <div class="label" style="margin-top:14px;">Party name</div>
+        <input id="partyNameInput" maxlength="32" placeholder="Party name" />
+        <button class="secondary" id="renameBtn">Rename party</button>
+
+        <div class="label" style="margin-top:14px;">Accent color</div>
+        <div class="swatches" id="swatches"></div>
+
+        <div class="label" style="margin-top:18px;">Manage queue</div>
+        <div id="adminQueue"></div>
+
+        <div class="label" style="margin-top:18px;">Manage players</div>
+        <div id="adminPlayers"></div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="label">🏆 Leaderboard</div>
-      <div id="leaderboard"></div>
-    </div>
-
-    <div class="card">
-      <div class="label">Up next</div>
-      <div id="queue"></div>
-    </div>
-
-    <!-- Admin-only panel -->
-    <div id="adminPanel" class="card admin hidden">
-      <div class="label">⚙️ Admin controls</div>
-
-      <div class="label" style="margin-top:14px;">Party name</div>
-      <input id="partyNameInput" maxlength="32" placeholder="Party name" />
-      <button class="secondary" id="renameBtn">Rename party</button>
-
-      <div class="label" style="margin-top:14px;">Accent color</div>
-      <div class="swatches" id="swatches"></div>
-
-      <div class="label" style="margin-top:18px;">Manage queue</div>
-      <div id="adminQueue"></div>
+    <div class="card" id="leaveCard">
+      <button class="secondary" id="leaveBtn" style="color:#ff4d4d;">🚪 Leave / Change Name</button>
     </div>
   </div>
 </div>
@@ -115,12 +136,22 @@ object JoinPage {
   var playerId = localStorage.getItem('partyoke_pid');
   var playerName = localStorage.getItem('partyoke_name');
   var lastState = null;
+  var currentTab = 'party';
 
   var ACCENTS = ['#ff2e92','#7c3aed','#00c2ff','#28d17c','#ff8a00','#ff4d4d'];
 
   function show(view) {
     document.getElementById('joinView').classList.toggle('hidden', view !== 'join');
     document.getElementById('playerView').classList.toggle('hidden', view !== 'player');
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    var isParty = (tab === 'party');
+    document.getElementById('tabParty').classList.toggle('active', isParty);
+    document.getElementById('tabAdmin').classList.toggle('active', !isParty);
+    document.getElementById('partyTabContent').classList.toggle('hidden', !isParty);
+    document.getElementById('adminTabContent').classList.toggle('hidden', isParty);
   }
 
   function post(path, body) {
@@ -133,7 +164,11 @@ object JoinPage {
   document.getElementById('joinBtn').onclick = function () {
     var name = document.getElementById('name').value.trim();
     if (!name) { return; }
-    post('/join', { name: name }).then(function(r){ return r.json(); }).then(function(d){
+    var oldPid = localStorage.getItem('partyoke_pid');
+    var p = oldPid ? post('/leave', { playerId: oldPid }) : Promise.resolve();
+    p.then(function() {
+      return post('/join', { name: name });
+    }).then(function(r){ return r.json(); }).then(function(d){
       playerId = d.id; playerName = d.name;
       localStorage.setItem('partyoke_pid', playerId);
       localStorage.setItem('partyoke_name', playerName);
@@ -211,6 +246,24 @@ object JoinPage {
     });
   }
 
+  function renderAdminPlayers(players) {
+    var el = document.getElementById('adminPlayers');
+    el.innerHTML = '';
+    if (!players || !players.length) { el.innerHTML = '<div class="meta">No players</div>'; return; }
+    players.forEach(function(p){
+      var row = document.createElement('div');
+      row.className = 'row';
+      var left = document.createElement('div');
+      left.className = 'name';
+      left.textContent = p.name + (p.id === lastState.adminPlayerId ? ' 👑' : '');
+      var rm = document.createElement('button');
+      rm.className = 'small secondary'; rm.textContent = '✕ Remove';
+      rm.onclick = function(){ post('/admin/player/remove', { playerId: playerId, targetPlayerId: p.id }); };
+      row.appendChild(left); row.appendChild(rm);
+      el.appendChild(row);
+    });
+  }
+
   function escapeHtml(s) {
     return (s || '').replace(/[&<>"']/g, function(c){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
@@ -229,7 +282,7 @@ object JoinPage {
 
     if (playerId && !sessionChecked) {
       var found = (state.players || []).some(function(p){ return p.id === playerId; });
-      if (!found && (state.players || []).length === 0) {
+      if (!found) {
         localStorage.removeItem('partyoke_pid');
         localStorage.removeItem('partyoke_name');
         playerId = null; playerName = null;
@@ -271,14 +324,30 @@ object JoinPage {
     // Admin panel toggle + contents.
     var admin = isAdmin(state);
     document.getElementById('adminBadge').classList.toggle('hidden', !admin);
-    document.getElementById('adminPanel').classList.toggle('hidden', !admin);
+    document.getElementById('tabBar').classList.toggle('hidden', !admin);
+    document.getElementById('leaveCard').classList.toggle('hidden', admin);
+    if (!admin && currentTab === 'admin') {
+      switchTab('party');
+    }
+
     if (admin) {
       renderSwatches(state.accentColor);
       renderAdminQueue(state.queue);
+      renderAdminPlayers(state.players);
       var nameInput = document.getElementById('partyNameInput');
       if (document.activeElement !== nameInput) { nameInput.value = state.partyName || ''; }
     }
   }
+
+  document.getElementById('leaveBtn').onclick = function () {
+    if (playerId) {
+      post('/leave', { playerId: playerId });
+    }
+    localStorage.removeItem('partyoke_pid');
+    localStorage.removeItem('partyoke_name');
+    playerId = null; playerName = null;
+    show('join');
+  };
 
   function connect() {
     var proto = location.protocol === 'https:' ? 'wss' : 'ws';

@@ -97,6 +97,7 @@ class PartyManager(private val activityLog: ActivityLog) {
     }
 
     fun removePlayer(playerId: String) = synchronized(lock) {
+        if (_state.value.adminPlayerId == playerId) return
         activityLog.record(
             ActivityEvent(ActivityType.PLAYER_LEFT, System.currentTimeMillis(), playerId)
         )
@@ -111,6 +112,11 @@ class PartyManager(private val activityLog: ActivityLog) {
             if (next != null) promoteToAdmin(next.id)
             else _state.value = _state.value.copy(adminPlayerId = null)
         }
+    }
+
+    fun removePlayer(playerId: String, byPlayerId: String) = synchronized(lock) {
+        if (!isAdmin(byPlayerId)) return
+        removePlayer(playerId)
     }
 
     // --- Admin: party branding ------------------------------------------

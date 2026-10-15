@@ -49,6 +49,12 @@ private data class RenameRequest(val playerId: String, val name: String)
 @Serializable
 private data class AccentRequest(val playerId: String, val accent: String)
 
+@Serializable
+private data class PlayerRemoveRequest(val playerId: String, val targetPlayerId: String)
+
+@Serializable
+private data class LeaveRequest(val playerId: String)
+
 /**
  * Embedded HTTP + WebSocket server that phones connect to over local Wi-Fi.
  * Serves the join page, accepts joins/skips, and streams [PartyManager.state]
@@ -76,6 +82,12 @@ class PartyServer(
                     val req = call.receive<JoinRequest>()
                     val player = manager.addPlayer(req.name)
                     call.respond(JoinResponse(player.id, player.name))
+                }
+
+                post("/leave") {
+                    val req = call.receive<LeaveRequest>()
+                    manager.removePlayer(req.playerId)
+                    call.respondText("ok")
                 }
 
                 post("/skip") {
@@ -123,6 +135,12 @@ class PartyServer(
                 post("/admin/accent") {
                     val req = call.receive<AccentRequest>()
                     manager.setAccentColor(req.accent, req.playerId)
+                    call.respondText("ok")
+                }
+
+                post("/admin/player/remove") {
+                    val req = call.receive<PlayerRemoveRequest>()
+                    manager.removePlayer(req.targetPlayerId, req.playerId)
                     call.respondText("ok")
                 }
 
