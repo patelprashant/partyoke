@@ -31,6 +31,18 @@ class UsbSongScanner(private val context: Context) {
         results.sortedBy { it.title.lowercase() }
     }
 
+    /**
+     * Recursively lists supported video files under a standard java.io.File directory (useful for emulator/fallback).
+     */
+    suspend fun scanDirectory(dir: java.io.File): List<Song> = withContext(Dispatchers.IO) {
+        android.util.Log.d("UsbSongScanner", "Scanning directory: ${dir.absolutePath}, exists: ${dir.exists()}, isDir: ${dir.isDirectory}")
+        if (!dir.exists() || !dir.isDirectory) return@withContext emptyList()
+        val results = mutableListOf<Song>()
+        collectFiles(dir, results)
+        android.util.Log.d("UsbSongScanner", "Found ${results.size} songs in ${dir.absolutePath}")
+        results.sortedBy { it.title.lowercase() }
+    }
+
     private fun collect(dir: DocumentFile, out: MutableList<Song>) {
         for (file in dir.listFiles()) {
             when {
@@ -49,8 +61,31 @@ class UsbSongScanner(private val context: Context) {
         }
     }
 
+    private fun collectFiles(dir: java.io.File, out: MutableList<Song>) {
+        dir.listFiles()?.forEach { file ->
+            when {
+                file.isDirectory -> collectFiles(file, out)
+                file.isFile && isSupportedVideoFile(file.name) -> {
+                    val name = file.name
+                    out.add(
+                        Song(
+                            id = file.absolutePath.hashCode().toString(),
+                            title = name.toTitle(),
+                            uri = Uri.fromFile(file).toString(),
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     private fun DocumentFile.isSupportedVideo(): Boolean {
         val n = name?.lowercase() ?: return false
+        return SUPPORTED_EXTENSIONS.any { n.endsWith(it) }
+    }
+
+    private fun isSupportedVideoFile(name: String): Boolean {
+        val n = name.lowercase()
         return SUPPORTED_EXTENSIONS.any { n.endsWith(it) }
     }
 

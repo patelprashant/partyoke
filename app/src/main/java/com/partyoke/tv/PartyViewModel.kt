@@ -46,6 +46,22 @@ class PartyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Fallback folder scan for emulators lacking a system document picker. */
+    fun onFallbackFolderPicked() {
+        viewModelScope.launch {
+            val internalDir = getApplication<Application>().filesDir
+            android.util.Log.d("PartyViewModel", "Fallback folder picked. filesDir: ${internalDir?.absolutePath}")
+            val songs = if (internalDir != null) {
+                scanner.scanDirectory(internalDir)
+            } else {
+                emptyList()
+            }
+            android.util.Log.d("PartyViewModel", "Loaded ${songs.size} songs into catalog.")
+            manager.setCatalog(songs)
+            ensureServer()
+        }
+    }
+
     private fun ensureServer() {
         if (serverStarted) return
         val ip = NetworkUtils.getLocalIpAddress()

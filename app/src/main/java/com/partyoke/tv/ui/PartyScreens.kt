@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import com.partyoke.tv.model.PartyState
-import com.partyoke.tv.model.Turn
 import com.partyoke.tv.net.QrGenerator
 import com.partyoke.tv.ui.theme.PartyCard
 import com.partyoke.tv.ui.theme.PartyMuted
@@ -134,21 +133,24 @@ fun PlayingScreen(
             }
         }
 
-        // Overlay: current singer + up-next ribbon
-        Column(modifier = Modifier.fillMaxWidth().padding(32.dp)) {
-            state.nowPlaying?.let { turn ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xCC140A24))
-                        .padding(horizontal = 24.dp, vertical = 14.dp),
-                ) {
-                    Column {
-                        Text("NOW SINGING", fontSize = 14.sp, color = PartyPink, fontWeight = FontWeight.Bold)
-                        Text(turn.playerName, fontSize = 30.sp, fontWeight = FontWeight.Black)
-                        Text(turn.songTitle, fontSize = 20.sp, color = PartyMuted)
-                    }
-                }
+
+
+        // 2. Top Right: Up Next (Single line box only)
+        state.queue.firstOrNull()?.let { nextTurn ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xCC140A24))
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = "Up Next: ${nextTurn.playerName}",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PartyPink,
+                )
             }
         }
 
@@ -163,38 +165,14 @@ fun PlayingScreen(
             }
         }
 
-        // Up-next ribbon at the bottom
-        Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            verticalArrangement = Arrangement.Bottom,
+        // 3. Bottom Right: Skip / Next button
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(32.dp),
         ) {
-            UpNextRibbon(state.queue)
-            Spacer(Modifier.height(16.dp))
-            Row {
-                Button(onClick = onSkip) { Text("Skip / Next", fontSize = 20.sp) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UpNextRibbon(queue: List<Turn>) {
-    if (queue.isEmpty()) return
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xCC1D1033))
-            .padding(20.dp),
-    ) {
-        Column {
-            Text("UP NEXT", fontSize = 14.sp, color = PartyPink, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            queue.take(5).forEachIndexed { i, t ->
-                Text(
-                    "${i + 1}. ${t.playerName} — ${t.songTitle}",
-                    fontSize = 18.sp,
-                    color = Color.White,
-                )
+            Button(onClick = onSkip) {
+                Text("Skip / Next", fontSize = 20.sp)
             }
         }
     }
