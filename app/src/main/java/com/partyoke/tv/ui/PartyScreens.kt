@@ -165,34 +165,7 @@ fun PlayingScreen(
             }
         }
 
-        // Top Left: live applause leaderboard (top 5)
-        if (state.leaderboard.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(32.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xCC1D1033))
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-            ) {
-                Column {
-                    Text(
-                        "🏆 LEADERBOARD",
-                        fontSize = 14.sp,
-                        color = accent,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    state.leaderboard.take(5).forEachIndexed { i, e ->
-                        Text(
-                            "${i + 1}. ${e.playerName}   👏 ${e.applause}",
-                            fontSize = 18.sp,
-                            color = Color.White,
-                        )
-                    }
-                }
-            }
-        }
+
 
         if (currentUri == null) {
             Column(
