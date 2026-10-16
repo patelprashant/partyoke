@@ -39,7 +39,7 @@ import com.partyoke.tv.ui.theme.PartyPink
 import com.partyoke.tv.ui.theme.parseAccent
 
 @Composable
-fun SetupScreen(onPickFolder: () -> Unit) {
+fun SetupScreen(onPickFolder: () -> Unit, onScanStorage: () -> Unit) {
     Box(
         modifier = Modifier.fillMaxSize().padding(64.dp),
         contentAlignment = Alignment.Center,
@@ -47,17 +47,21 @@ fun SetupScreen(onPickFolder: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("PartyOke", fontSize = 72.sp, fontWeight = FontWeight.Black, color = PartyPink)
             Text("Scan. Sing. Party.", fontSize = 26.sp, color = PartyMuted)
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(36.dp))
             Text(
-                "Plug in your USB drive, then choose the folder\ncontaining your karaoke videos.",
-                fontSize = 22.sp,
+                "Plug in your USB drive, then scan connected storage\nor select a folder containing your karaoke videos.",
+                fontSize = 20.sp,
                 color = Color.White,
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(28.dp))
             val focus = remember { FocusRequester() }
             LaunchedEffect(Unit) { focus.requestFocus() }
-            Button(onClick = onPickFolder, modifier = Modifier.focusRequester(focus)) {
-                Text("Select USB Karaoke Folder", fontSize = 22.sp)
+            Button(onClick = onScanStorage, modifier = Modifier.focusRequester(focus)) {
+                Text("Scan Connected USB / Storage", fontSize = 22.sp)
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onPickFolder) {
+                Text("Select USB Folder (System Picker)", fontSize = 20.sp)
             }
         }
     }

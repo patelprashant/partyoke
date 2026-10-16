@@ -49,11 +49,19 @@ class MainActivity : ComponentActivity() {
 
                     when (state.phase) {
                         PartyPhase.SETUP -> SetupScreen(
+                            onScanStorage = {
+                                viewModel.onFallbackFolderPicked()
+                            },
                             onPickFolder = {
                                 if (isEmulator()) {
                                     viewModel.onFallbackFolderPicked()
                                 } else {
-                                    folderPicker.launch(null)
+                                    try {
+                                        folderPicker.launch(null)
+                                    } catch (e: Exception) {
+                                        android.util.Log.w("MainActivity", "Folder picker launch failed, falling back to storage scan", e)
+                                        viewModel.onFallbackFolderPicked()
+                                    }
                                 }
                             }
                         )

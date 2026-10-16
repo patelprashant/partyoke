@@ -43,6 +43,51 @@ class UsbSongScanner(private val context: Context) {
         results.sortedBy { it.title.lowercase() }
     }
 
+    /**
+     * Scans all available storage locations including internal files, external files dirs,
+     * and mounted volumes under /storage (USB drives, SD cards, etc.).
+     */
+    suspend fun scanAllStorage(): List<Song> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Song>()
+        val scannedPaths = mutableSetOf<String>()
+
+        // 1. Internal filesDir
+        context.filesDir?.let { dir ->
+            if (dir.exists() && dir.isDirectory && scannedPaths.add(dir.absolutePath)) {
+                collectFiles(dir, results)
+            }
+        }
+
+        // 2. External files dirs (USB / SD cards)
+        context.getExternalFilesDirs(null).forEach { dir ->
+            if (dir != null && dir.exists() && dir.isDirectory && scannedPaths.add(dir.absolutePath)) {
+                collectFiles(dir, results)
+            }
+        }
+
+        // 3. Mount points under /storage (USB drives on Android TV)
+        val storageDir = java.io.File("/storage")
+        if (storageDir.exists() && storageDir.isDirectory) {
+            storageDir.listFiles()?.forEach { volume ->
+                if (volume.isDirectory && scannedPaths.add(volume.absolutePath)) {
+                    collectFiles(volume, results)
+                }
+            }
+        }
+
+        // 4. Environment external storage
+        try {
+            val extStorage = android.os.Environment.getExternalStorageDirectory()
+            if (extStorage != null && extStorage.exists() && extStorage.isDirectory && scannedPaths.add(extStorage.absolutePath)) {
+                collectFiles(extStorage, results)
+            }
+        } catch (_: Exception) {
+        }
+
+        android.util.Log.d("UsbSongScanner", "Scan all storage found ${results.size} songs total.")
+        results.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+    }
+
     private fun collect(dir: DocumentFile, out: MutableList<Song>) {
         for (file in dir.listFiles()) {
             when {
