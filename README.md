@@ -83,6 +83,18 @@ open it in a browser, enter a name, and get a random song queued automatically.
 
 ---
 
+## 🤖 CI/CD
+
+GitHub Actions builds and publishes the app:
+
+- **CI** runs on every PR + push to `main`: ktlint, Android lint, debug APK (uploaded as an artifact).
+- **Release** runs on a `vX.Y.Z` tag: builds a **signed** APK + AAB and publishes a GitHub Release with auto-generated notes.
+
+Versioning is **tag-driven** (push `v1.2.0` → release `1.2.0`). Full setup + the one-time
+signing-secrets steps are in **[RELEASING.md](RELEASING.md)**.
+
+---
+
 ## 🎛️ Admin features (Tier 1)
 
 The **first phone to join is the admin** (no PIN needed). The admin's phone shows
