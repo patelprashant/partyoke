@@ -33,16 +33,22 @@ fun VideoPlayer(
     DisposableEffect(uri) {
         exoPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(uri)))
         exoPlayer.prepare()
+        exoPlayer.play()
 
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) onEnded()
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("VideoPlayer", "ExoPlayer playback error: ${error.message}", error)
             }
         }
         exoPlayer.addListener(listener)
 
         onDispose {
             exoPlayer.removeListener(listener)
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
         }
     }
 
@@ -56,7 +62,11 @@ fun VideoPlayer(
             PlayerView(ctx).apply {
                 player = exoPlayer
                 useController = false
+                keepScreenOn = true
             }
         },
+        update = { view ->
+            view.player = exoPlayer
+        }
     )
 }
