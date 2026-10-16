@@ -44,6 +44,69 @@ class UsbSongScanner(private val context: Context) {
     }
 
     /**
+     * Scans for a folder named "PartyOkeSongs" across all available storage locations (USB, external, internal).
+     * If found, scans songs within that folder. If not found, falls back to scanning all storage locations.
+     */
+    suspend fun scanPartyOkeSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Song>()
+        val partyOkeFolders = mutableListOf<java.io.File>()
+
+        fun findFolders(dir: java.io.File) {
+            try {
+                dir.listFiles()?.forEach { file ->
+                    if (file.isDirectory) {
+                        if (file.name.equals("PartyOkeSongs", ignoreCase = true)) {
+                            partyOkeFolders.add(file)
+                        } else {
+                            findFolders(file)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        val roots = mutableListOf<java.io.File>()
+        context.filesDir?.let { roots.add(it) }
+        context.getExternalFilesDirs(null).filterNotNull().forEach { roots.add(it) }
+
+        val storageDir = java.io.File("/storage")
+        if (storageDir.exists() && storageDir.isDirectory) {
+            storageDir.listFiles()?.forEach { volume ->
+                if (volume.isDirectory) {
+                    roots.add(volume)
+                }
+            }
+        }
+        try {
+            val extStorage = android.os.Environment.getExternalStorageDirectory()
+            if (extStorage != null && extStorage.exists() && extStorage.isDirectory) {
+                roots.add(extStorage)
+            }
+        } catch (_: Exception) {}
+
+        roots.forEach { root ->
+            if (root.name.equals("PartyOkeSongs", ignoreCase = true)) {
+                partyOkeFolders.add(root)
+            } else {
+                findFolders(root)
+            }
+        }
+
+        android.util.Log.d("UsbSongScanner", "Found ${partyOkeFolders.size} 'PartyOkeSongs' folder(s).")
+
+        if (partyOkeFolders.isNotEmpty()) {
+            partyOkeFolders.forEach { folder ->
+                collectFiles(folder, results)
+            }
+        } else {
+            android.util.Log.d("UsbSongScanner", "'PartyOkeSongs' folder not found. Falling back to scan all storage.")
+            return@withContext scanAllStorage()
+        }
+
+        results.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+    }
+
+    /**
      * Scans all available storage locations including internal files, external files dirs,
      * and mounted volumes under /storage (USB drives, SD cards, etc.).
      */

@@ -46,12 +46,12 @@ class PartyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Scan all available storage locations (USB, external storage, internal files). */
+    /** Scan for "PartyOkeSongs" folder across storage/USB. */
     fun onFallbackFolderPicked() {
         viewModelScope.launch {
-            android.util.Log.d("PartyViewModel", "Scanning all storage/USB for songs...")
-            val songs = scanner.scanAllStorage()
-            android.util.Log.d("PartyViewModel", "Loaded ${songs.size} songs into catalog from storage/USB.")
+            android.util.Log.d("PartyViewModel", "Scanning for 'PartyOkeSongs' folder on storage/USB...")
+            val songs = scanner.scanPartyOkeSongs()
+            android.util.Log.d("PartyViewModel", "Loaded ${songs.size} songs into catalog from 'PartyOkeSongs'.")
             manager.setCatalog(songs)
             ensureServer()
         }

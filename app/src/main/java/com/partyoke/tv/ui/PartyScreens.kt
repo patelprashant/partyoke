@@ -49,7 +49,7 @@ fun SetupScreen(onPickFolder: () -> Unit, onScanStorage: () -> Unit) {
             Text("Scan. Sing. Party.", fontSize = 26.sp, color = PartyMuted)
             Spacer(Modifier.height(36.dp))
             Text(
-                "Plug in your USB drive, then scan connected storage\nor select a folder containing your karaoke videos.",
+                "Plug in your USB drive with a folder named 'PartyOkeSongs',\nthen scan connected storage.",
                 fontSize = 20.sp,
                 color = Color.White,
             )
