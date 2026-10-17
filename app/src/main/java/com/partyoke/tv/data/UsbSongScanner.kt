@@ -2,6 +2,7 @@ package com.partyoke.tv.data
 
 import android.content.Context
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import com.partyoke.tv.model.Song
 import kotlinx.coroutines.Dispatchers
@@ -9,11 +10,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Scans a user-picked folder (typically on an attached USB drive) for karaoke
- * video files using the Storage Access Framework.
- *
- * We use SAF rather than raw file paths because USB mount points are
- * inconsistent across Android TV manufacturers, and SAF grants a persistable
- * permission to the exact folder the host selected.
+ * video files using MediaStore and Storage Access Framework.
  */
 class UsbSongScanner(private val context: Context) {
 
@@ -44,10 +41,112 @@ class UsbSongScanner(private val context: Context) {
     }
 
     /**
-     * Scans for a folder named "PartyOkeSongs" across all available storage locations (USB, external, internal).
-     * If found, scans songs within that folder. If not found, falls back to scanning all storage locations.
+     * Scans for karaoke videos in "PartyOkeSongs" using the system MediaStore database,
+     * which bypasses raw file mount permission restrictions on Android TV USB drives.
+     */
+    suspend fun scanViaMediaStore(): List<Song> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Song>()
+        val projection = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.TITLE,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DATA
+        )
+        val selection = "${MediaStore.Video.Media.DATA} LIKE ?"
+        val selectionArgs = arrayOf("%PartyOkeSongs%")
+
+        try {
+            context.contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                val titleCol = cursor.getColumnIndex(MediaStore.Video.Media.TITLE)
+                val displayCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val dataPath = cursor.getString(dataCol) ?: continue
+                    val displayName = if (displayCol != -1) cursor.getString(displayCol) else null
+                    val title = if (titleCol != -1) cursor.getString(titleCol) else null
+                    val fileName = displayName ?: java.io.File(dataPath).name
+                    val songTitle = title?.takeIf { it.isNotBlank() } ?: fileName.toTitle()
+
+                    val uri = android.content.ContentUris.withAppendedId(
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                        id
+                    ).toString()
+
+                    results.add(
+                        Song(
+                            id = id.toString(),
+                            title = songTitle,
+                            uri = uri
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("UsbSongScanner", "Error querying MediaStore with selection", e)
+        }
+
+        if (results.isEmpty()) {
+            try {
+                context.contentResolver.query(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                    val displayCol = cursor.getColumnIndex(MediaStore.Video.Media.DISPLAY_NAME)
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idCol)
+                        val dataPath = cursor.getString(dataCol) ?: continue
+                        if (dataPath.contains("PartyOkeSongs", ignoreCase = true)) {
+                            val displayName = if (displayCol != -1) cursor.getString(displayCol) else null
+                            val fileName = displayName ?: java.io.File(dataPath).name
+                            val uri = android.content.ContentUris.withAppendedId(
+                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                id
+                            ).toString()
+                            results.add(
+                                Song(
+                                    id = id.toString(),
+                                    title = fileName.toTitle(),
+                                    uri = uri
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("UsbSongScanner", "Error querying all MediaStore videos", e)
+            }
+        }
+
+        android.util.Log.d("UsbSongScanner", "MediaStore scan found ${results.size} songs.")
+        results.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+    }
+
+    /**
+     * Scans for a folder named "PartyOkeSongs" across MediaStore and storage locations.
      */
     suspend fun scanPartyOkeSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val mediaStoreSongs = scanViaMediaStore()
+        if (mediaStoreSongs.isNotEmpty()) {
+            android.util.Log.d("UsbSongScanner", "Successfully loaded ${mediaStoreSongs.size} songs via MediaStore.")
+            return@withContext mediaStoreSongs
+        }
+
+        android.util.Log.d("UsbSongScanner", "MediaStore returned 0 songs. Falling back to raw storage scan.")
         val results = mutableListOf<Song>()
         val partyOkeFolders = mutableListOf<java.io.File>()
 
@@ -92,14 +191,13 @@ class UsbSongScanner(private val context: Context) {
             }
         }
 
-        android.util.Log.d("UsbSongScanner", "Found ${partyOkeFolders.size} 'PartyOkeSongs' folder(s).")
-
         if (partyOkeFolders.isNotEmpty()) {
             partyOkeFolders.forEach { folder ->
                 collectFiles(folder, results)
             }
-        } else {
-            android.util.Log.d("UsbSongScanner", "'PartyOkeSongs' folder not found. Falling back to scan all storage.")
+        }
+
+        if (results.isEmpty()) {
             return@withContext scanAllStorage()
         }
 
