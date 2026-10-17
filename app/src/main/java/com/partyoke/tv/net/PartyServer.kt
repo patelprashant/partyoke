@@ -69,6 +69,8 @@ class PartyServer(
 
     fun start() {
         if (engine != null) return
+        val ip = NetworkUtils.getLocalIpAddress() ?: "0.0.0.0"
+        android.util.Log.i("PartyServer", "Starting PartyServer on port $port (Local IP: $ip)...")
         engine = embeddedServer(Netty, port = port, host = "0.0.0.0") {
             install(WebSockets)
             install(ContentNegotiation) { json(json) }
@@ -151,7 +153,11 @@ class PartyServer(
                     }
                 }
             }
-        }.also { it.start(wait = false) }
+        }.also {
+            it.start(wait = false)
+            val ip = NetworkUtils.getLocalIpAddress() ?: "0.0.0.0"
+            android.util.Log.i("PartyServer", "PartyServer running successfully on http://$ip:$port")
+        }
     }
 
     fun stop() {
