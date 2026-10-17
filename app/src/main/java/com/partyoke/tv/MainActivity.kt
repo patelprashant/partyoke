@@ -29,6 +29,45 @@ class MainActivity : ComponentActivity() {
         uri?.let { viewModel.onFolderPicked(it) }
     }
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.onFallbackFolderPicked()
+        } else {
+            android.util.Log.w("MainActivity", "Storage read permission denied by user.")
+        }
+    }
+
+    private fun checkAndScanStorage() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                try {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    )
+                    startActivity(intent)
+                    return
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to request MANAGE_EXTERNAL_STORAGE", e)
+                }
+            }
+        }
+
+        val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            viewModel.onFallbackFolderPicked()
+        } else {
+            requestPermissionLauncher.launch(permission)
+        }
+    }
+
     private fun isEmulator(): Boolean {
         return android.os.Build.FINGERPRINT.startsWith("generic") ||
             android.os.Build.FINGERPRINT.startsWith("unknown") ||
@@ -49,11 +88,19 @@ class MainActivity : ComponentActivity() {
 
                     when (state.phase) {
                         PartyPhase.SETUP -> SetupScreen(
+                            onScanStorage = {
+                                checkAndScanStorage()
+                            },
                             onPickFolder = {
                                 if (isEmulator()) {
                                     viewModel.onFallbackFolderPicked()
                                 } else {
-                                    folderPicker.launch(null)
+                                    try {
+                                        folderPicker.launch(null)
+                                    } catch (e: Exception) {
+                                        android.util.Log.w("MainActivity", "Folder picker launch failed, falling back to storage scan", e)
+                                        viewModel.onFallbackFolderPicked()
+                                    }
                                 }
                             }
                         )

@@ -43,6 +43,114 @@ class UsbSongScanner(private val context: Context) {
         results.sortedBy { it.title.lowercase() }
     }
 
+    /**
+     * Scans for a folder named "PartyOkeSongs" across all available storage locations (USB, external, internal).
+     * If found, scans songs within that folder. If not found, falls back to scanning all storage locations.
+     */
+    suspend fun scanPartyOkeSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Song>()
+        val partyOkeFolders = mutableListOf<java.io.File>()
+
+        fun findFolders(dir: java.io.File) {
+            try {
+                dir.listFiles()?.forEach { file ->
+                    if (file.isDirectory) {
+                        if (file.name.equals("PartyOkeSongs", ignoreCase = true)) {
+                            partyOkeFolders.add(file)
+                        } else {
+                            findFolders(file)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        val roots = mutableListOf<java.io.File>()
+        context.filesDir?.let { roots.add(it) }
+        context.getExternalFilesDirs(null).filterNotNull().forEach { roots.add(it) }
+
+        val storageDir = java.io.File("/storage")
+        if (storageDir.exists() && storageDir.isDirectory) {
+            storageDir.listFiles()?.forEach { volume ->
+                if (volume.isDirectory) {
+                    roots.add(volume)
+                }
+            }
+        }
+        try {
+            val extStorage = android.os.Environment.getExternalStorageDirectory()
+            if (extStorage != null && extStorage.exists() && extStorage.isDirectory) {
+                roots.add(extStorage)
+            }
+        } catch (_: Exception) {}
+
+        roots.forEach { root ->
+            if (root.name.equals("PartyOkeSongs", ignoreCase = true)) {
+                partyOkeFolders.add(root)
+            } else {
+                findFolders(root)
+            }
+        }
+
+        android.util.Log.d("UsbSongScanner", "Found ${partyOkeFolders.size} 'PartyOkeSongs' folder(s).")
+
+        if (partyOkeFolders.isNotEmpty()) {
+            partyOkeFolders.forEach { folder ->
+                collectFiles(folder, results)
+            }
+        } else {
+            android.util.Log.d("UsbSongScanner", "'PartyOkeSongs' folder not found. Falling back to scan all storage.")
+            return@withContext scanAllStorage()
+        }
+
+        results.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+    }
+
+    /**
+     * Scans all available storage locations including internal files, external files dirs,
+     * and mounted volumes under /storage (USB drives, SD cards, etc.).
+     */
+    suspend fun scanAllStorage(): List<Song> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Song>()
+        val scannedPaths = mutableSetOf<String>()
+
+        // 1. Internal filesDir
+        context.filesDir?.let { dir ->
+            if (dir.exists() && dir.isDirectory && scannedPaths.add(dir.absolutePath)) {
+                collectFiles(dir, results)
+            }
+        }
+
+        // 2. External files dirs (USB / SD cards)
+        context.getExternalFilesDirs(null).forEach { dir ->
+            if (dir != null && dir.exists() && dir.isDirectory && scannedPaths.add(dir.absolutePath)) {
+                collectFiles(dir, results)
+            }
+        }
+
+        // 3. Mount points under /storage (USB drives on Android TV)
+        val storageDir = java.io.File("/storage")
+        if (storageDir.exists() && storageDir.isDirectory) {
+            storageDir.listFiles()?.forEach { volume ->
+                if (volume.isDirectory && scannedPaths.add(volume.absolutePath)) {
+                    collectFiles(volume, results)
+                }
+            }
+        }
+
+        // 4. Environment external storage
+        try {
+            val extStorage = android.os.Environment.getExternalStorageDirectory()
+            if (extStorage != null && extStorage.exists() && extStorage.isDirectory && scannedPaths.add(extStorage.absolutePath)) {
+                collectFiles(extStorage, results)
+            }
+        } catch (_: Exception) {
+        }
+
+        android.util.Log.d("UsbSongScanner", "Scan all storage found ${results.size} songs total.")
+        results.distinctBy { it.uri }.sortedBy { it.title.lowercase() }
+    }
+
     private fun collect(dir: DocumentFile, out: MutableList<Song>) {
         for (file in dir.listFiles()) {
             when {
@@ -62,19 +170,36 @@ class UsbSongScanner(private val context: Context) {
     }
 
     private fun collectFiles(dir: java.io.File, out: MutableList<Song>) {
-        dir.listFiles()?.forEach { file ->
-            when {
-                file.isDirectory -> collectFiles(file, out)
-                file.isFile && isSupportedVideoFile(file.name) -> {
-                    val name = file.name
-                    out.add(
-                        Song(
-                            id = file.absolutePath.hashCode().toString(),
-                            title = name.toTitle(),
-                            uri = Uri.fromFile(file).toString(),
+        android.util.Log.d("UsbSongScanner", "collectFiles scanning dir: ${dir.absolutePath}, exists: ${dir.exists()}, canRead: ${dir.canRead()}")
+        val files = try {
+            dir.listFiles()
+        } catch (e: Exception) {
+            android.util.Log.e("UsbSongScanner", "Exception listing files in ${dir.absolutePath}", e)
+            null
+        }
+        if (files == null) {
+            android.util.Log.w("UsbSongScanner", "dir.listFiles() returned null for ${dir.absolutePath} (Storage read permission missing or restricted)")
+            return
+        }
+        android.util.Log.d("UsbSongScanner", "dir.listFiles() found ${files.size} items in ${dir.absolutePath}")
+        files.forEach { file ->
+            try {
+                when {
+                    file.isDirectory -> collectFiles(file, out)
+                    file.isFile && isSupportedVideoFile(file.name) -> {
+                        val name = file.name
+                        android.util.Log.d("UsbSongScanner", "Found supported video: $name at ${file.absolutePath}")
+                        out.add(
+                            Song(
+                                id = file.absolutePath.hashCode().toString(),
+                                title = name.toTitle(),
+                                uri = Uri.fromFile(file).toString(),
+                            )
                         )
-                    )
+                    }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("UsbSongScanner", "Error processing file ${file?.absolutePath}", e)
             }
         }
     }
