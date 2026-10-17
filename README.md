@@ -31,10 +31,10 @@ Android TV App (Kotlin)
 ├─ Local server  Ktor (Netty) + WebSockets  → serves phone web app
 └─ Activity log  InMemoryActivityLog (interface-backed, swappable)
 
-Phones  ──scan QR──▶  http://<tv-lan-ip>:8080  (join page + live WS updates)
+Phones  ──scan QR──▶  http://<tv-lan-ip>:8888  (join page + live WS updates)
 ```
 
-The QR encodes the TV's LAN address (e.g. `http://192.168.1.50:8080`). Phones
+The QR encodes the TV's LAN address (e.g. `http://192.168.1.50:8888`). Phones
 open it in a browser, enter a name, and get a random song queued automatically.
 
 ### Key source files
@@ -76,7 +76,7 @@ open it in a browser, enter a name, and get a random song queued automatically.
 
 ## ⚙️ Configuration
 
-- **Server port:** `8080` (see `PartyViewModel.PORT` and `PartyServer`).
+- **Server port:** `8888` (see `PartyViewModel.PORT` and `PartyServer`).
 - **Supported video formats:** mp4, mkv, webm, avi, mov, m4v, 3gp, ts
   (`UsbSongScanner.SUPPORTED_EXTENSIONS`).
 - **Min / Target SDK:** 24 / 34.
