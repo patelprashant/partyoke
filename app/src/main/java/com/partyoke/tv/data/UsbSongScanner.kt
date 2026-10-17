@@ -171,26 +171,35 @@ class UsbSongScanner(private val context: Context) {
 
     private fun collectFiles(dir: java.io.File, out: MutableList<Song>) {
         android.util.Log.d("UsbSongScanner", "collectFiles scanning dir: ${dir.absolutePath}, exists: ${dir.exists()}, canRead: ${dir.canRead()}")
-        val files = dir.listFiles()
+        val files = try {
+            dir.listFiles()
+        } catch (e: Exception) {
+            android.util.Log.e("UsbSongScanner", "Exception listing files in ${dir.absolutePath}", e)
+            null
+        }
         if (files == null) {
-            android.util.Log.w("UsbSongScanner", "dir.listFiles() returned null for ${dir.absolutePath} (Storage read permission missing or denied!)")
+            android.util.Log.w("UsbSongScanner", "dir.listFiles() returned null for ${dir.absolutePath} (Storage read permission missing or restricted)")
             return
         }
         android.util.Log.d("UsbSongScanner", "dir.listFiles() found ${files.size} items in ${dir.absolutePath}")
         files.forEach { file ->
-            when {
-                file.isDirectory -> collectFiles(file, out)
-                file.isFile && isSupportedVideoFile(file.name) -> {
-                    val name = file.name
-                    android.util.Log.d("UsbSongScanner", "Found supported video: $name at ${file.absolutePath}")
-                    out.add(
-                        Song(
-                            id = file.absolutePath.hashCode().toString(),
-                            title = name.toTitle(),
-                            uri = Uri.fromFile(file).toString(),
+            try {
+                when {
+                    file.isDirectory -> collectFiles(file, out)
+                    file.isFile && isSupportedVideoFile(file.name) -> {
+                        val name = file.name
+                        android.util.Log.d("UsbSongScanner", "Found supported video: $name at ${file.absolutePath}")
+                        out.add(
+                            Song(
+                                id = file.absolutePath.hashCode().toString(),
+                                title = name.toTitle(),
+                                uri = Uri.fromFile(file).toString(),
+                            )
                         )
-                    )
+                    }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("UsbSongScanner", "Error processing file ${file?.absolutePath}", e)
             }
         }
     }

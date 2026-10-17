@@ -40,6 +40,21 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndScanStorage() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                try {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    )
+                    startActivity(intent)
+                    return
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to request MANAGE_EXTERNAL_STORAGE", e)
+                }
+            }
+        }
+
         val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             android.Manifest.permission.READ_MEDIA_VIDEO
         } else {
