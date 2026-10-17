@@ -81,6 +81,6 @@ class PartyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        const val PORT = 8888
+        const val PORT = 8128
     }
 }

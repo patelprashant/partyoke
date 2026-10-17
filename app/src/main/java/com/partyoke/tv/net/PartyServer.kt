@@ -62,7 +62,7 @@ private data class LeaveRequest(val playerId: String)
  */
 class PartyServer(
     private val manager: PartyManager,
-    private val port: Int = 8888,
+    private val port: Int = 8128,
 ) {
     private var engine: ApplicationEngine? = null
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
